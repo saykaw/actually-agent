@@ -29,6 +29,8 @@ load_dotenv()
 
 if not os.environ.get("GOOGLE_API_KEY") and os.environ.get("GEMINI_API_KEY"):
     os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
+    
+print(os.environ["GOOGLE_API_KEY"])
 
 APP_NAME = "actually_agent"
 
@@ -48,14 +50,8 @@ def _build_fresh_agent(graph_store: GraphStore):
     """Build a fresh ADK agent bound to a specific graph store instance."""
     from google.adk.agents import Agent
 
-    # Determine model — support both Gemini and LiteLLM
-    model_name = os.environ.get("ACTUALLY_MODEL", "gemini-2.5-flash")
-
-    if model_name.startswith("groq/") or model_name.startswith("openrouter/"):
-        from google.adk.models.lite_llm import LiteLlm
-        model = LiteLlm(model=model_name)
-    else:
-        model = model_name
+    model_name = os.environ.get("ACTUALLY_MODEL")
+    model = model_name
 
     reset_graph_store()
     submit_finding = make_submit_finding(get_graph_store())
@@ -76,8 +72,6 @@ def _build_fresh_agent(graph_store: GraphStore):
 async def _run_agent(claim: str, graph_store: GraphStore) -> dict:
     """Async core — runs inside a dedicated thread's event loop."""
     agent = _build_fresh_agent(graph_store)
-    print(f"INSTRUCTION LENGTH: {len(agent.instruction)}")  # ADD THIS
-    print(f"INSTRUCTION PREVIEW: {agent.instruction[:200]}")  # ADD THIS
     runner = InMemoryRunner(agent=agent, app_name=APP_NAME)
 
     session = await runner.session_service.create_session(
@@ -97,26 +91,17 @@ async def _run_agent(claim: str, graph_store: GraphStore) -> dict:
     )
 
     full_response_text = ""
-
-    # async for event in runner.run_async(
-    #     user_id="user",
-    #     session_id=session.id,
-    #     new_message=user_message,
-    # ):
-    #     if hasattr(event, "content") and event.content and event.content.parts:
-    #         for part in event.content.parts:
-    #             if hasattr(part, "text") and part.text:
-    #                 full_response_text += part.text
-    #             elif hasattr(part, "function_call") and part.function_call:
-    #                 print(f"[tool call: {part.function_call.name}]")
-    #             elif hasattr(part, "function_response") and part.function_response:
-    #                 print(f"[tool response: {part.function_response.name}]")
     
     async for event in runner.run_async(
-        user_id="user",
-        session_id=session.id,
-        new_message=user_message,
-    ):
+    user_id="user",
+    session_id=session.id,
+    new_message=user_message,
+    ):  
+        error_code = getattr(event, "error_code", None)
+        error_message = getattr(event, "error_message", None)
+        if error_code or error_message:
+            print(f"[EVENT ERROR] code={error_code} message={error_message}")
+
         if hasattr(event, "content") and event.content and event.content.parts:
             for part in event.content.parts:
                 if hasattr(part, "text") and part.text:
@@ -125,6 +110,8 @@ async def _run_agent(claim: str, graph_store: GraphStore) -> dict:
                     print(f"[tool call: {part.function_call.name}] args: {dict(part.function_call.args)}")
                 elif hasattr(part, "function_response") and part.function_response:
                     print(f"[tool response: {part.function_response.name}] result: {str(part.function_response.response)[:200]}")
+        else:
+            print(f"[EMPTY EVENT] {event}")
 
     verdict = _extract_trailing_json(full_response_text)
     graph = get_graph_store().to_dict()
