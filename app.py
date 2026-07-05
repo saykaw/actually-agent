@@ -85,8 +85,7 @@ st.markdown("""
     </div>
     <p style="color:#6B7280;font-size:1.05rem;margin:0;max-width:500px;
               line-height:1.65;font-family:'DM Sans',sans-serif;">
-        Paste a scientific claim. The agent searches PubMed and Semantic Scholar,
-        audits the evidence, and maps what it finds.
+        Claim it. Unclaim it. Repeat until the evidence agrees.
     </p>
 </div>
 """, unsafe_allow_html=True)
@@ -106,7 +105,7 @@ with col_btn:
 if run and claim:
     st.session_state.pop("result", None)
     st.session_state.pop("error", None)
-    with st.spinner("Searching PubMed, Semantic Scholar, checking citations..."):
+    with st.spinner("Searching PubMed, OpenAlex, checking citations..."):
         result = investigate_claim(claim)
     if result.get("error"):
         st.session_state["error"] = result["error"]
