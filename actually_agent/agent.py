@@ -16,11 +16,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from google.adk.agents import Agent
-from google.adk.models.lite_llm import LiteLlm  # ADD THIS
+from dotenv import load_dotenv
 from mcp.pubmed_server import PUBMED_TOOLS
-from mcp.semantic_scholar_server import SEMANTIC_TOOLS
+from mcp.openalex_server import OPENALEX_TOOLS
 from actually_agent.tools import make_submit_finding, get_graph_store
 from actually_agent.prompts import build_instruction
+
+load_dotenv()
+model_name = os.environ.get("ACTUALLY_MODEL")
 
 # Build the full instruction by loading the SKILL.md
 instruction = build_instruction()
@@ -33,12 +36,12 @@ submit_finding = make_submit_finding(get_graph_store())
 
 root_agent = Agent(
     name="actually_agent",
-    model="gemini-2.5-flash-lite",
+    model=model_name,
     description=(
         "A rigorous scientific claim investigator. "
         "Traces original studies, audits methodology, hunts for contradictions, "
         "checks replication, and renders an evidence knowledge graph."
     ),
     instruction=instruction,
-    tools=PUBMED_TOOLS + SEMANTIC_TOOLS + [submit_finding],
+    tools=PUBMED_TOOLS + OPENALEX_TOOLS + [submit_finding],
 )
